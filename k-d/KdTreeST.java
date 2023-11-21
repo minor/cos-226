@@ -6,8 +6,8 @@ import edu.princeton.cs.algs4.StdRandom;
 import edu.princeton.cs.algs4.Stopwatch;
 
 public class KdTreeST<Value> {
-    private Node root;   // root of KdTree
-    private int n;       // # of nodes in KdTree
+    private Node root; // root of KdTree
+    private int n; // # of nodes in KdTree
 
     private class Node {
         private Point2D p; // the point
@@ -17,8 +17,7 @@ public class KdTreeST<Value> {
         private Node rt; // the right/top subtree
         private boolean xy; // determine if point is x-coord or y-coord
 
-
-        // Node constructor
+        // node constructor
         public Node(Point2D p, Value val, RectHV rect, Node lb, Node rt,
                     boolean xy) {
             this.p = p;
@@ -29,7 +28,6 @@ public class KdTreeST<Value> {
             this.xy = xy;
         }
     }
-
 
     // construct an empty symbol table of points
     public KdTreeST() {
@@ -53,7 +51,8 @@ public class KdTreeST<Value> {
             throw new IllegalArgumentException("Inputs cannot be null");
         }
         root = helperPut(root, p, val, true, Double.NEGATIVE_INFINITY,
-                         Double.NEGATIVE_INFINITY, 1, 1);
+                         Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY,
+                         Double.POSITIVE_INFINITY);
     }
 
     // helper method for put
@@ -78,22 +77,26 @@ public class KdTreeST<Value> {
             cmp = Double.compare(p.x(), node.p.x());
             if (cmp < 0) {
                 // update xmax when inserting to the left subtree
-                node.lb = helperPut(node.lb, p, val, false, xmin, ymin, node.p.x(), ymax);
+                node.lb = helperPut(node.lb, p, val, false, xmin, ymin,
+                                    node.p.x(), ymax);
             }
             else {
                 // update xmin when inserting to the right subtree
-                node.rt = helperPut(node.rt, p, val, false, node.p.x(), ymin, xmax, ymax);
+                node.rt = helperPut(node.rt, p, val, false, node.p.x(), ymin,
+                                    xmax, ymax);
             }
         }
         else {
             cmp = Double.compare(p.y(), node.p.y());
             if (cmp < 0) {
                 // update ymax when inserting to the left subtree
-                node.lb = helperPut(node.lb, p, val, true, xmin, ymin, xmax, node.p.y());
+                node.lb = helperPut(node.lb, p, val, true, xmin, ymin, xmax,
+                                    node.p.y());
             }
             else {
                 // update ymin when inserting to the right subtree
-                node.rt = helperPut(node.rt, p, val, true, xmin, node.p.y(), xmax, ymax);
+                node.rt = helperPut(node.rt, p, val, true, xmin, node.p.y(),
+                                    xmax, ymax);
             }
         }
         return node;
@@ -110,15 +113,7 @@ public class KdTreeST<Value> {
 
         while (current != null) {
             Point2D currentPoint = current.p;
-
-            // debugging
-            // System.out.println("p: " + p);
-            // System.out.println("currentPoint: " + currentPoint);
-
             if (p.equals(currentPoint)) {
-                // debugging
-                // System.out.println("found matching point: " + currentPoint);
-                // System.out.println("returning: " + current.val);
                 return current.val; // return val
             }
 
@@ -130,34 +125,16 @@ public class KdTreeST<Value> {
                 cmp = Double.compare(p.y(), currentPoint.y());
             }
 
-            // debugging
-            // System.out.println("cmp: " + cmp);
-
             // decide where to go
             if (cmp < 0) {
-                // debugging
-                // System.out.println("going left");
                 current = current.lb; // go left for smaller values
             }
             else {
-                // debugging
-                // System.out.println("going right right");
                 current = current.rt; // go right for equal or greater values
             }
-
-            if (current != null) {
-                current.xy = !current.xy;
-            }
-
-            // if (p.equals(currentPoint)) {
-            //     System.out.println("Finally breaking");
-            //     break;
-            // }
         }
 
-        // debugging
-        // System.out.println("Point not found.");
-        return null; // point not found.
+        return null; // point not found
     }
 
 
@@ -228,42 +205,50 @@ public class KdTreeST<Value> {
     }
 
     // helper function for finding the nearest point
-    private Point2D helperNearest(Node node, Point2D p, Point2D n, boolean xy) {
-        if (node == null) {
-            return n;
+    private Point2D helperNearest(Node current, Point2D p, Point2D champ,
+                                  boolean xy) {
+        if (current == null) {
+            // base: if current is null, return champ
+            return champ;
         }
 
-        Point2D champion = n; // create champion point
-        double nodePtoP = node.p.distanceSquaredTo(p);
-        double championToP = champion.distanceSquaredTo(p);
-
-        if (nodePtoP < championToP) {
-            champion = node.p;
+        // if current point is closer, update champion
+        double rectDistance = current.p.distanceSquaredTo(p);
+        if (rectDistance < champ.distanceSquaredTo(p)) {
+            champ = current.p;
         }
 
-        // if current point is closer than next distance between next point
-        // and node's rectangle, then no need to look at node/subtrees
-        if (node.rect.distanceSquaredTo(p) < n.distanceSquaredTo(p)) {
-            double cmp;
-            if (node.xy) {
-                cmp = Double.compare(p.x(), node.p.x());
-            }
-            else {
-                cmp = Double.compare(p.y(), node.p.y());
-            }
+        // find which subtree to go down
+        double cmp;
+        if (current.xy) {
+            cmp = Double.compare(p.x(), current.p.x());
+        }
+        else {
+            cmp = Double.compare(p.y(), current.p.y());
+        }
 
-            if (cmp < 0) {
-                // explore left first
-                n = helperNearest(node.lb, p, n, xy);
-                n = helperNearest(node.rt, p, n, xy);
-            }
-            else {
-                // explore right first
-                n = helperNearest(node.rt, p, n, xy);
-                n = helperNearest(node.lb, p, n, xy);
+        if (cmp < 0) {
+            // explore left subtree
+            champ = helperNearest(current.lb, p, champ, !xy); // flip xy
+            // check if going down right subtree is necessary
+            if (current.rt != null
+                    && current.rt.rect.distanceSquaredTo(p)
+                    < champ.distanceSquaredTo(p)) {
+                champ = helperNearest(current.rt, p, champ, !xy); // flip xy
             }
         }
-        return n;
+        else {
+            // explore right subtree
+            champ = helperNearest(current.rt, p, champ, !xy); // flip xy
+            // check if going down left subtree is necessary
+            if (current.lb != null
+                    && current.lb.rect.distanceSquaredTo(p)
+                    < champ.distanceSquaredTo(p)) {
+                champ = helperNearest(current.lb, p, champ, !xy); // flip xy
+            }
+        }
+
+        return champ;
     }
 
     // unit testing (required)
@@ -283,6 +268,11 @@ public class KdTreeST<Value> {
             kdtree.put(p, val);
         }
 
+        Point2D rando = new Point2D(StdRandom.uniformDouble(),
+                                    StdRandom.uniformDouble());
+        System.out.println("Point: " + rando);
+        System.out.println("Nearest: " + kdtree.nearest(rando));
+
         // testing for readme (start a stopwatch, go through 1M nearest
         // neighbors, then stop the stopwatch)
         Stopwatch stopwatch = new Stopwatch();
@@ -293,73 +283,69 @@ public class KdTreeST<Value> {
         double time = stopwatch.elapsedTime();
         System.out.println(time);
 
-        // // // debugging/test cases
-        // //
-        // // // Add some points to the tree
-        // // Point2D p1 = new Point2D(0.5, 0.5);
-        // // Point2D p2 = new Point2D(0.2, 0.2);
-        // // Point2D p3 = new Point2D(0.8, 0.8);
-        // // kdtree.put(p1, 1.0);
-        // // kdtree.put(p2, 2.0);
-        // // kdtree.put(p3, 3.0);
-        // //
-        // // // Test the get() function to retrieve values associated with points
-        // // Point2D searchP1 = new Point2D(0.5, 0.5);
-        // // Point2D searchP2 = new Point2D(0.2, 0.2);
-        // // Point2D searchP3 = new Point2D(0.8, 0.8);
-        // //
-        // // // case 1: retrieve val at p1
-        // // System.out.println("val associated with p1: "
-        // //                            + kdtree.get(searchP1)); // expected: 1.0
-        // //
-        // // // case 2: retrieve val at p2
-        // // System.out.println("val associated with p2: "
-        // //                            + kdtree.get(searchP2)); // expected: 2.0
-        // //
-        // // // case 3: retrieve val at p3
-        // // System.out.println("val associated with p3: "
-        // //                            + kdtree.get(searchP3)); // expected: 3.0
-        // //
-        // // // case 4: retrieve val for point not in tree
-        // // System.out.println(
-        // //         "Value associated with non-existent point: " +
-        // //                 kdtree.get(new Point2D(0.3, 0.3))); // expected: null
+        // debugging/test cases
+        // add some points to the tree
+        Point2D p1 = new Point2D(0.5, 0.5);
+        Point2D p2 = new Point2D(0.2, 0.2);
+        Point2D p3 = new Point2D(0.8, 0.8);
+        kdtree.put(p1, 1.0);
+        kdtree.put(p2, 2.0);
+        kdtree.put(p3, 3.0);
 
-        // // testing for contains and duplicates b/c that was broken for me:
-        // // create a new KdTree
-        // KdTreeST<Double> kdtree = new KdTreeST<Double>();
-        //
-        // System.out.println(kdtree.size());
-        // System.out.println(kdtree.isEmpty());
-        // // System.out.println(kdtree.points());
-        // // System.out.println(kdtree.contains(new Point2D(1.0, 0.875)));
-        // // System.out.println(kdtree.get(new Point2D(2.0, 0.975)));
-        // // System.out.println(kdtree.nearest(new Point2D(2.0, 0.975)));
-        //
-        // Point2D pointA = new Point2D(1.0, 0.875);
-        // Point2D pointB = new Point2D(0.75, 0.375);
-        // Point2D pointC = new Point2D(0.5, 1.0);
-        // Point2D pointD = new Point2D(0.125, 0.75);
-        // Point2D pointE = new Point2D(0.875, 0.125);
-        // Point2D pointF = new Point2D(0.75, 0.375);
-        //
-        // kdtree.put(pointA, 0.0);
-        // kdtree.put(pointB, 0.0);
-        // kdtree.put(pointC, 0.0);
-        // kdtree.put(pointD, 0.0);
-        // kdtree.put(pointE, 0.0);
-        // System.out.println("\nPoints: " + kdtree.points());
-        // System.out.println("Size: " + kdtree.size());
-        // System.out.println("Get value of B: " + kdtree.get(pointB));
-        // kdtree.put(pointF, 1.0);
-        // System.out.println("\nPoints: " + kdtree.points());
-        // System.out.println("Size: " + kdtree.size());
-        // System.out.println("Get value of F: " + kdtree.get(pointF));
-        //
-        //
-        // Point2D queryPoint = new Point2D(1.0, 0.875);
-        //
-        //
-        // System.out.println(kdtree.contains(queryPoint));
+        // test the get() function to retrieve values associated with points
+        Point2D searchP1 = new Point2D(0.5, 0.5);
+        Point2D searchP2 = new Point2D(0.2, 0.2);
+        Point2D searchP3 = new Point2D(0.8, 0.8);
+
+        // case 1: retrieve val at p1
+        System.out.println("val associated with p1: "
+                                   + kdtree.get(searchP1)); // expected: 1.0
+
+        // case 2: retrieve val at p2
+        System.out.println("val associated with p2: "
+                                   + kdtree.get(searchP2)); // expected: 2.0
+
+        // case 3: retrieve val at p3
+        System.out.println("val associated with p3: "
+                                   + kdtree.get(searchP3)); // expected: 3.0
+
+        // case 4: retrieve val for point not in tree
+        System.out.println(
+                "Value associated with non-existent point: " +
+                        kdtree.get(new Point2D(0.3, 0.3))); // expected: null
+
+        // testing for contains and duplicates b/c that was broken for me:
+
+
+        System.out.println(kdtree.size());
+        System.out.println(kdtree.isEmpty());
+        System.out.println(kdtree.points());
+        System.out.println(kdtree.contains(new Point2D(1.0, 0.875)));
+        System.out.println(kdtree.get(new Point2D(2.0, 0.975)));
+        System.out.println(kdtree.nearest(new Point2D(2.0, 0.975)));
+
+        Point2D pointA = new Point2D(1.0, 0.875);
+        Point2D pointB = new Point2D(0.75, 0.375);
+        Point2D pointC = new Point2D(0.5, 1.0);
+        Point2D pointD = new Point2D(0.125, 0.75);
+        Point2D pointE = new Point2D(0.875, 0.125);
+        Point2D pointF = new Point2D(0.75, 0.375);
+
+        kdtree.put(pointA, 0.0);
+        kdtree.put(pointB, 0.0);
+        kdtree.put(pointC, 0.0);
+        kdtree.put(pointD, 0.0);
+        kdtree.put(pointE, 0.0);
+        System.out.println("\nPoints: " + kdtree.points());
+        System.out.println("Size: " + kdtree.size());
+        System.out.println("Get value of B: " + kdtree.get(pointB));
+        kdtree.put(pointF, 1.0);
+        System.out.println("\nPoints: " + kdtree.points());
+        System.out.println("Size: " + kdtree.size());
+        System.out.println("Get value of F: " + kdtree.get(pointF));
+
+        Point2D queryPoint = new Point2D(1.0, 0.875);
+
+        System.out.println(kdtree.contains(queryPoint));
     }
 }
