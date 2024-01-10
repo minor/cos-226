@@ -15,7 +15,7 @@ Programming Assignment 6:  Seam Carving
  *      9/16/22 John von Neumann (lab TA)
  ******************************************************************************/
 
-[write the dates and help received here]
+11/21/23 Aarush Kukreja (friend)
 
 
 /******************************************************************************
@@ -30,8 +30,8 @@ Programming Assignment 6:  Seam Carving
  *      with University regulations.  /s/ Alan Turing
  ******************************************************************************/
 
-[write and sign the pledge here]
-
+This programming assignment represents my own work in accordance
+with University regulations.  /s/ Saurish Srivastava
 
 
 /******************************************************************************
@@ -40,5 +40,5 @@ Programming Assignment 6:  Seam Carving
  *  Write "NA" if you did not work with a partner.
  ******************************************************************************/
 
-YES / NO / NA
+NA
 

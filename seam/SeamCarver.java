@@ -1,11 +1,15 @@
+import edu.princeton.cs.algs4.IndexMinPQ;
 import edu.princeton.cs.algs4.Picture;
+import edu.princeton.cs.algs4.StdOut;
+import edu.princeton.cs.algs4.Stopwatch;
+
+import java.awt.Color;
+import java.util.Arrays;
 
 public class SeamCarver {
 
     // create a new pic variable
     private Picture pic;
-    private int width;
-    private int height;
 
     // create a seam carver object based on the given picture
     public SeamCarver(Picture picture) {
@@ -13,8 +17,6 @@ public class SeamCarver {
             throw new IllegalArgumentException("Null picture not permitted.");
         }
         pic = new Picture(picture);
-        width = picture.width();
-        height = picture.height();
     }
 
     // current picture
@@ -24,275 +26,229 @@ public class SeamCarver {
 
     // width of current picture
     public int width() {
-        return width;
+        return pic.width();
     }
 
     // height of current picture
     public int height() {
-        return height;
+        return pic.height();
     }
-
-    // helper method to get different colors
-    public int getColor(String color, int x) {
-        if (color.equals("red")) {
-            // red
-            return ((x >> 16) & 0xFF);
-        }
-        else if (color.equals("green")) {
-            // green
-            return ((x >> 8) & 0xFF);
-        }
-        else {
-            // blue
-            return ((x) & 0xFF);
-        }
-    }
-
 
     // energy of pixel at column x and row y
     public double energy(int x, int y) {
-        // handle the exceptions
-        if (x < 0 || x > width() - 1) {
-            throw new IllegalArgumentException("Column is invalid.");
-        }
-        if (y < 0 || y > height() - 1) {
-            throw new IllegalArgumentException("Row is invalid.");
-        }
+        checkValidity(x, y);
+        Color colorL = getColorAt(x - 1, y);
+        Color colorR = getColorAt(x + 1, y);
+        Color colorT = getColorAt(x, y - 1);
+        Color colorB = getColorAt(x, y + 1);
+        return Math.sqrt(diff(colorL, colorR) + diff(colorT, colorB));
+    }
 
+    // helper method to check validity
+    private void checkValidity(int x, int y) {
+        if (x < 0 || x >= width() || y < 0 || y >= height()) {
+            throw new IllegalArgumentException("Inputs are invalid.");
+        }
+    }
 
+    // helper method to get the color
+    private Color getColorAt(int x, int y) {
+        return new Color(pic.getRGB(Math.floorMod(x, width()),
+                                    Math.floorMod(y, height())));
+    }
+
+    // helper method to get the diff/delta between two colors
+    private double diff(Color color1, Color color2) {
+        return Math.pow(color1.getRed() - color2.getRed(), 2) +
+                Math.pow(color1.getGreen() - color2.getGreen(), 2) +
+                Math.pow(color1.getBlue() - color2.getBlue(), 2);
     }
 
     // sequence of indices for horizontal seam
     public int[] findHorizontalSeam() {
-        // Initialize a 2D array to store the energies of pixels
-        double[][] energyMatrix = new double[height()][width()];
+        int w = width();
+        int h = height();
+        double[][] energyGrid = new double[w][h];
+        double[][] dist = new double[w][h];
+        int[][] pathTo = new int[w][h];
+        IndexMinPQ<Double> pq = new IndexMinPQ<>(w * h);
 
-        // Populate the energy matrix by computing the energy of each pixel
-        for (int y = 0; y < height(); y++) {
-            for (int x = 0; x < width(); x++) {
-                energyMatrix[y][x] = energy(x, y);
-            }
-        }
+        int[] n = new int[h];
+        Arrays.fill(n, -1);
 
-        // Initialize a 2D array to store the cumulative energies
-        double[][] cumulativeEnergy = new double[height()][width()];
+        for (int x = 0; x < w; x++) {
+            for (int y = 0; y < h; y++) {
+                energyGrid[x][y] = energy(x, y);
 
-        // Copy the first column of the energy matrix to the cumulative energy matrix
-        for (int y = 0; y < height(); y++) {
-            cumulativeEnergy[y][0] = energyMatrix[y][0];
-        }
-
-        // Calculate the cumulative minimum energy for each pixel
-        for (int x = 1; x < width(); x++) {
-            for (int y = 0; y < height(); y++) {
-                double minEnergy = cumulativeEnergy[y][x - 1];
-
-                // Check the three neighboring pixels on the left to find the minimum energy
-                if (y > 0) {
-                    minEnergy = Math.min(minEnergy, cumulativeEnergy[y - 1][x - 1]);
+                if (x == 0) {
+                    dist[x][y] = energyGrid[x][y];
+                    pq.insert(y, dist[x][y]);
                 }
-                if (y < height() - 1) {
-                    minEnergy = Math.min(minEnergy, cumulativeEnergy[y + 1][x - 1]);
+                else {
+                    dist[x][y] = Double.POSITIVE_INFINITY;
                 }
-
-                cumulativeEnergy[y][x] = energyMatrix[y][x] + minEnergy;
             }
         }
 
-        // Find the minimum energy seam by tracing back the path from the rightmost column
-        int[] seam = new int[width()];
-        double minEnergy = Double.POSITIVE_INFINITY;
-        int minEnergyIndex = -1;
+        while (!pq.isEmpty()) {
+            int idx = pq.delMin();
+            int col = idx / h, row = idx % h;
+            if (col == w - 1) return buildHorizontalSeam(pathTo, row, w);
+            relaxHorizontalEdges(col, row, energyGrid, dist, pathTo, pq, h);
+        }
 
-        for (int y = 0; y < height(); y++) {
-            if (cumulativeEnergy[y][width() - 1] < minEnergy) {
-                minEnergy = cumulativeEnergy[y][width() - 1];
-                minEnergyIndex = y;
+        return n;
+    }
+
+    // [add comment here]
+    private void relaxHorizontalEdges(int col, int row,
+                                      double[][] energyGrid, double[][] distTo,
+                                      int[][] pathTo,
+                                      IndexMinPQ<Double> pq, int height) {
+        for (int adj = -1; adj <= 1; adj++) {
+            int nextRow = row + adj;
+            if (nextRow >= 0 && nextRow < height) {
+                double newDist = distTo[col][row] + energyGrid[col + 1][nextRow];
+                if (newDist < distTo[col + 1][nextRow]) {
+                    distTo[col + 1][nextRow] = newDist;
+                    pathTo[col + 1][nextRow] = row;
+                    pq.insert((col + 1) * height + nextRow, newDist);
+                }
             }
         }
+    }
 
-        seam[width() - 1] = minEnergyIndex;
-
-        for (int x = width() - 2; x >= 0; x--) {
-            minEnergyIndex = backtrackSeamHorizontal(cumulativeEnergy, energyMatrix, minEnergyIndex,
-                                                     x + 1);
-            seam[x] = minEnergyIndex;
+    // create the horizontal seam path
+    private int[] buildHorizontalSeam(int[][] path, int endRow, int width) {
+        int[] seam = new int[width];
+        for (int x = width - 1, y = endRow; x >= 0; x--) {
+            seam[x] = y;
+            y = path[x][y];
         }
-
         return seam;
     }
 
-    // Helper method to backtrack and find the minimum energy index for horizontal seam
-    private int backtrackSeamHorizontal(double[][] cumulativeEnergy, double[][] energyMatrix, int y,
-                                        int x) {
-        double minEnergy = cumulativeEnergy[y][x];
-        int minEnergyIndex = y;
-
-        if (y > 0 && cumulativeEnergy[y - 1][x] < minEnergy) {
-            minEnergy = cumulativeEnergy[y - 1][x];
-            minEnergyIndex = y - 1;
+    // flips the image to allow other methods to be reused
+    private void flipImage() {
+        Picture flipped = new Picture(height(), width());
+        for (int x = 0; x < width(); x++) {
+            for (int y = 0; y < height(); y++) {
+                flipped.setRGB(y, x, pic.getRGB(x, y));
+            }
         }
-        if (y < height() - 1 && cumulativeEnergy[y + 1][x] < minEnergy) {
-            minEnergy = cumulativeEnergy[y + 1][x];
-            minEnergyIndex = y + 1;
-        }
-
-        return minEnergyIndex;
+        pic = flipped;
     }
-
 
     // sequence of indices for vertical seam
     public int[] findVerticalSeam() {
-        // Initialize a 2D array to store the energies of pixels
-        double[][] energyMatrix = new double[height()][width()];
+        int w = width();
+        int h = height();
+        double[][] energyGrid = new double[h][w];
+        double[][] dist = new double[h][w];
+        int[][] pathTo = new int[h][w];
+        int[] m = new int[h];
+        Arrays.fill(m, -1);
+        IndexMinPQ<Double> pq = new IndexMinPQ<>(w * h);
 
-        // Populate the energy matrix by computing the energy of each pixel
-        for (int y = 0; y < height(); y++) {
-            for (int x = 0; x < width(); x++) {
-                energyMatrix[y][x] = energy(x, y);
-            }
-        }
-
-        // Initialize a 2D array to store the cumulative energies
-        double[][] cumulativeEnergy = new double[height()][width()];
-
-        // Copy the first row of the energy matrix to the cumulative energy matrix
-        for (int x = 0; x < width(); x++) {
-            cumulativeEnergy[0][x] = energyMatrix[0][x];
-        }
-
-        // Calculate the cumulative minimum energy for each pixel
-        for (int y = 1; y < height(); y++) {
-            for (int x = 0; x < width(); x++) {
-                double minEnergy = cumulativeEnergy[y - 1][x];
-
-                // Check the three neighboring pixels above to find the minimum energy
-                if (x > 0) {
-                    minEnergy = Math.min(minEnergy, cumulativeEnergy[y - 1][x - 1]);
+        for (int y = 0; y < h; y++) {
+            for (int x = 0; x < w; x++) {
+                energyGrid[y][x] = energy(x, y);
+                if (y == 0) {
+                    dist[y][x] = energyGrid[y][x];
+                    pq.insert(x, dist[y][x]);
                 }
-                if (x < width() - 1) {
-                    minEnergy = Math.min(minEnergy, cumulativeEnergy[y - 1][x + 1]);
+                else {
+                    dist[y][x] = Double.POSITIVE_INFINITY;
                 }
-
-                cumulativeEnergy[y][x] = energyMatrix[y][x] + minEnergy;
             }
         }
 
-        // Find the minimum energy seam by tracing back the path from the bottom row
-        int[] seam = new int[height()];
-        double minEnergy = Double.POSITIVE_INFINITY;
-        int minEnergyIndex = -1;
+        while (!pq.isEmpty()) {
+            int idx = pq.delMin();
+            int row = idx / w, col = idx % w;
+            if (row == h - 1) return buildVerticalSeam(pathTo, col, h);
+            relaxEdges(row, col, energyGrid, dist, pathTo, pq, w);
+        }
 
-        for (int x = 0; x < width(); x++) {
-            if (cumulativeEnergy[height() - 1][x] < minEnergy) {
-                minEnergy = cumulativeEnergy[height() - 1][x];
-                minEnergyIndex = x;
+        return m;
+    }
+
+    // relaxes the edges to find the shortest [directional] seam path
+    private void relaxEdges(int row, int col, double[][] energyGrid,
+                            double[][] distTo, int[][] pathTo,
+                            IndexMinPQ<Double> pq, int width) {
+        for (int adj = -1; adj <= 1; adj++) {
+            int nextCol = col + adj;
+            if (nextCol >= 0 && nextCol < width) {
+                double newDist = distTo[row][col] + energyGrid[row + 1][nextCol];
+                if (newDist < distTo[row + 1][nextCol]) {
+                    distTo[row + 1][nextCol] = newDist;
+                    pathTo[row + 1][nextCol] = col;
+                    pq.insert((row + 1) * width + nextCol, newDist);
+                }
             }
         }
+    }
 
-        seam[height() - 1] = minEnergyIndex;
-
-        for (int y = height() - 2; y >= 0; y--) {
-            minEnergyIndex = backtrackSeam(cumulativeEnergy, energyMatrix, y + 1, minEnergyIndex);
-            seam[y] = minEnergyIndex;
+    // helper method to construct the vertical seam path
+    private int[] buildVerticalSeam(int[][] path, int endColumn, int height) {
+        int[] seam = new int[height];
+        for (int y = height - 1, x = endColumn; y >= 0; y--) {
+            seam[y] = x;
+            x = path[y][x];
         }
-
         return seam;
     }
 
-    // Helper method to backtrack and find the minimum energy index
-    private int backtrackSeam(double[][] cumulativeEnergy, double[][] energyMatrix, int y, int x) {
-        double minEnergy = cumulativeEnergy[y][x];
-        int minEnergyIndex = x;
-
-        if (x > 0 && cumulativeEnergy[y][x - 1] < minEnergy) {
-            minEnergy = cumulativeEnergy[y][x - 1];
-            minEnergyIndex = x - 1;
-        }
-        if (x < width() - 1 && cumulativeEnergy[y][x + 1] < minEnergy) {
-            minEnergy = cumulativeEnergy[y][x + 1];
-            minEnergyIndex = x + 1;
-        }
-
-        return minEnergyIndex;
-    }
-
-
     // remove horizontal seam from current picture
     public void removeHorizontalSeam(int[] seam) {
-        // handle the exceptions
-        if (seam == null) {
-            throw new IllegalArgumentException("Input is null.");
-        }
-        if (seam.length != width()) {
-            throw new IllegalArgumentException("Input length is invalid.");
-        }
-
-        for (int i = 0; i < seam.length - 1; i++) {
-            if (Math.abs(seam[i + 1] - seam[i]) > 1) {
-                throw new IllegalArgumentException("Input is not a seam.");
-            }
-        }
-
-        // set the color
-        int[][] colors = new int[height()][width()];
-        for (int col = 0; col < width(); col++) {
-            for (int row = 0; row < height(); row++) {
-                colors[row][col] = pic.getRGB(col, row);
-            }
-        }
-
-        // create a new pic
-        pic = new Picture(width(), height() - 1);
-        for (int col = 0; col < width(); col++) {
-            for (int row = 0; row < height(); row++) {
-                if (row == seam[col]) {
-                    continue;
-                }
-                pic.setRGB(col, row, colors[col][row]);
-            }
-        }
+        flipImage();
+        removeVerticalSeam(seam);
+        flipImage();
     }
 
     // remove vertical seam from current picture
     public void removeVerticalSeam(int[] seam) {
-        // handle the exceptions
-        if (seam == null) {
-            throw new IllegalArgumentException("Input is null.");
-        }
-        if (seam.length != height()) {
-            throw new IllegalArgumentException("Input length is invalid.");
-        }
-
-        for (int i = 0; i < seam.length - 1; i++) {
-            if (Math.abs(seam[i + 1] - seam[i]) > 1) {
-                throw new IllegalArgumentException("Input is not a seam.");
-            }
-        }
-
-        // set the color
-        int[][] colors = new int[height()][width()];
-        for (int col = 0; col < width(); col++) {
-            for (int row = 0; row < height(); row++) {
-                colors[row][col] = pic.getRGB(col, row);
-            }
-        }
-
-        // create a new pic
-        pic = new Picture(width(), height() - 1);
-        for (int row = 0; row < height(); row++) {
-            for (int col = 0; col < width(); col++) {
-                if (row == seam[col]) {
-                    continue;
+        valSeam(seam);
+        Picture newPic = new Picture(width() - 1, height());
+        for (int y = 0; y < height(); y++) {
+            for (int x = 0, newX = 0; x < width(); x++) {
+                if (x != seam[y]) {
+                    newPic.setRGB(newX++, y, pic.getRGB(x, y));
                 }
-                pic.setRGB(col, row, colors[col][row]);
+            }
+        }
+        pic = newPic;
+    }
+
+    // helper method to validate seam for removal
+    private void valSeam(int[] seam) {
+        if (seam == null || seam.length != height()) {
+            throw new IllegalArgumentException("Seam isn't valid.");
+        }
+        for (int i = 0; i < seam.length; i++) {
+            if (seam[i] < 0 || seam[i] >= width() || (i > 0
+                    && Math.abs(seam[i] - seam[i - 1]) > 1)) {
+                throw new IllegalArgumentException("Seam element(s) are"
+                                                           + "invalid.");
             }
         }
     }
 
+
     //  unit testing (required)
     public static void main(String[] args) {
+        Picture pic = new Picture("stadium2000-by-8000.png");
+        SeamCarver sc = new SeamCarver(pic);
+        sc.picture().show();
+        StdOut.println("Width: " + sc.width());
+        StdOut.println("Height: " + sc.height());
+        StdOut.println("Energy at (0,0): " + sc.energy(0, 0));
 
+        Stopwatch sw = new Stopwatch();
+        sc.removeVerticalSeam(sc.findVerticalSeam());
+        sc.removeHorizontalSeam(sc.findHorizontalSeam());
+        StdOut.println("Elapsed Time: " + sw.elapsedTime());
     }
 
 }
